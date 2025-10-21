@@ -117,9 +117,9 @@
    - 基于 Gemini API
    - 欢迎优化提示词或添加新的 AI 功能
 
-3. **画布系统** (基于 Nano Banana)
+3. **画布系统** (基于 BananaPod / Nano Banana)
    - 无限画布的核心功能
-   - 建议熟悉 Nano Banana 的设计模式
+   - 建议熟悉 BananaPod 和 Nano Banana 的设计模式
 
 4. **UI 组件** (`components/`)
    - 类 Lovart 的设计风格
@@ -282,9 +282,9 @@ We welcome Pull Requests! Please follow this workflow:
    - Based on Gemini API
    - Welcome prompt optimizations or new AI features
 
-3. **Canvas System** (Based on Nano Banana)
+3. **Canvas System** (Based on BananaPod / Nano Banana)
    - Core infinite canvas functionality
-   - Suggest familiarizing with Nano Banana's design patterns
+   - Suggest familiarizing with BananaPod and Nano Banana's design patterns
 
 4. **UI Components** (`components/`)
    - Lovart-inspired design style
