@@ -1,18 +1,75 @@
+/**
+ * ============================================
+ * 图层面板组件 (Layer Panel Minimizable)
+ * ============================================
+ * 
+ * 【组件职责】
+ * 管理画布上的所有图层（元素），提供可视化的图层操作界面
+ * 
+ * 【核心功能】
+ * 1. 图层列表展示：显示所有画布元素的层级关系
+ * 2. 可见性控制：显示/隐藏图层
+ * 3. 锁定保护：锁定图层防止误操作
+ * 4. 重命名功能：双击图层名称进行重命名
+ * 5. 拖拽排序：调整图层的层级顺序（Z-index）
+ * 6. 选中状态：高亮显示当前选中的图层
+ * 7. 图标识别：为不同类型的元素显示对应图标
+ * 8. 最小化动画：类似"传送门"的展开/收起效果
+ * 
+ * 【设计模式】
+ * - 受控组件：所有状态由父组件管理
+ * - 递归渲染：支持嵌套的父子图层关系
+ * - 拖拽排序：使用原生 HTML5 Drag API
+ * 
+ * 【交互逻辑】
+ * - 单击图层：选中该图层
+ * - 双击名称：进入重命名模式
+ * - 悬停显示：显示锁定和可见性按钮
+ * - 拖拽图层：调整层级顺序
+ * - 点击按钮：切换锁定/可见性状态
+ * 
+ * 【动画效果】
+ * - 使用 scaleX 实现"传送门"展开效果
+ * - transformOrigin 设为左侧，从左边展开
+ * - 配合 opacity 实现平滑过渡
+ */
+
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import type { Element } from '../types';
 
+/**
+ * 【Props 接口定义】
+ */
 interface LayerPanelMinimizableProps {
-    isMinimized: boolean;
-    onToggleMinimize: () => void;
-    elements: Element[];
-    selectedElementIds: string[];
-    onSelectElement: (id: string | null) => void;
-    onToggleVisibility: (id: string) => void;
-    onToggleLock: (id: string) => void;
-    onRenameElement: (id: string, name: string) => void;
-    onReorder: (draggedId: string, targetId: string, position: 'before' | 'after') => void;
+    isMinimized: boolean;                // 是否最小化状态
+    onToggleMinimize: () => void;        // 切换最小化/展开的回调
+    elements: Element[];                 // 所有画布元素数组
+    selectedElementIds: string[];        // 当前选中的元素ID列表
+    onSelectElement: (id: string | null) => void;           // 选中图层的回调
+    onToggleVisibility: (id: string) => void;               // 切换可见性的回调
+    onToggleLock: (id: string) => void;                     // 切换锁定状态的回调
+    onRenameElement: (id: string, name: string) => void;    // 重命名图层的回调
+    onReorder: (draggedId: string, targetId: string, position: 'before' | 'after') => void;  // 拖拽排序的回调
 }
 
+/**
+ * 【工具函数】获取元素类型对应的图标
+ * 
+ * 根据元素类型返回相应的 SVG 图标
+ * 
+ * @param {Element} element - 元素对象
+ * @returns {React.ReactNode} SVG 图标组件
+ * 
+ * 【支持的元素类型】
+ * - image: 图片图标
+ * - video: 视频图标
+ * - text: 文本图标
+ * - shape: 形状图标（矩形、圆形、三角形）
+ * - group: 分组图标
+ * - path: 路径/画笔图标
+ * - arrow: 箭头图标
+ * - line: 直线图标
+ */
 const getElementIcon = (element: Element): React.ReactNode => {
     const commonProps = {
         width: "16",
@@ -53,27 +110,52 @@ const getElementIcon = (element: Element): React.ReactNode => {
     return <svg {...commonProps}><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path></svg>;
 };
 
+/**
+ * 【子组件】单个图层项 (LayerItem)
+ * 
+ * 渲染单个图层行，包含图标、名称、锁定和可见性按钮
+ * 
+ * 【功能】
+ * - 显示图层图标和名称
+ * - 支持双击重命名
+ * - 显示/隐藏、锁定/解锁按钮
+ * - 选中状态高亮
+ * - 支持拖拽排序
+ * - 根据层级缩进显示
+ */
 const LayerItem: React.FC<{
-    element: Element;
-    level: number;
-    isSelected: boolean;
-    onSelect: () => void;
-    onToggleVisibility: () => void;
-    onToggleLock: () => void;
-    onRename: (name: string) => void;
-    onDragStart: (e: React.DragEvent<HTMLDivElement>) => void;
-    onDragOver: (e: React.DragEvent<HTMLDivElement>) => void;
-    onDrop: (e: React.DragEvent<HTMLDivElement>) => void;
-    onDragLeave: (e: React.DragEvent<HTMLDivElement>) => void;
+    element: Element;               // 图层元素对象
+    level: number;                  // 嵌套层级（用于缩进）
+    isSelected: boolean;            // 是否被选中
+    onSelect: () => void;           // 选中回调
+    onToggleVisibility: () => void; // 切换可见性回调
+    onToggleLock: () => void;       // 切换锁定回调
+    onRename: (name: string) => void;  // 重命名回调
+    onDragStart: (e: React.DragEvent<HTMLDivElement>) => void;   // 拖拽开始
+    onDragOver: (e: React.DragEvent<HTMLDivElement>) => void;    // 拖拽经过
+    onDrop: (e: React.DragEvent<HTMLDivElement>) => void;        // 拖拽放下
+    onDragLeave: (e: React.DragEvent<HTMLDivElement>) => void;   // 拖拽离开
 }> = ({ element, level, isSelected, onSelect, onToggleVisibility, onToggleLock, onRename, ...dragProps }) => {
-    const [isEditing, setIsEditing] = useState(false);
-    const [name, setName] = useState(element.name || element.type);
-    const inputRef = useRef<HTMLInputElement>(null);
+    
+    // ============ 状态管理 ============
+    const [isEditing, setIsEditing] = useState(false);          // 是否处于编辑模式
+    const [name, setName] = useState(element.name || element.type);  // 图层名称
+    const inputRef = useRef<HTMLInputElement>(null);            // 输入框引用
 
+    // ============ 副作用 ============
+    
+    /**
+     * 【Effect 1】同步图层名称
+     * 当元素名称或类型变化时，更新本地状态
+     */
     useEffect(() => {
         setName(element.name || element.type);
     }, [element.name, element.type]);
 
+    /**
+     * 【Effect 2】自动聚焦输入框
+     * 进入编辑模式时，自动聚焦并选中文本
+     */
     useEffect(() => {
         if (isEditing && inputRef.current) {
             inputRef.current.focus();
@@ -81,12 +163,18 @@ const LayerItem: React.FC<{
         }
     }, [isEditing]);
 
+    // ============ 事件处理 ============
+    
+    /**
+     * 【方法】完成重命名
+     * 失去焦点时保存新名称，如果为空则恢复原名称
+     */
     const handleBlur = () => {
         setIsEditing(false);
         if (name.trim() === '') {
-            setName(element.name || element.type);
+            setName(element.name || element.type);  // 恢复原名称
         } else {
-            onRename(name);
+            onRename(name);  // 保存新名称
         }
     };
 
@@ -148,6 +236,9 @@ const LayerItem: React.FC<{
     );
 };
 
+/**
+ * 【主组件】图层面板 (LayerPanelMinimizable)
+ */
 export const LayerPanelMinimizable: React.FC<LayerPanelMinimizableProps> = ({
     isMinimized,
     onToggleMinimize,
@@ -159,48 +250,101 @@ export const LayerPanelMinimizable: React.FC<LayerPanelMinimizableProps> = ({
     onRenameElement,
     onReorder
 }) => {
-    const panelRef = useRef<HTMLDivElement>(null);
-    const [dragOverId, setDragOverId] = useState<string | null>(null);
+    // ============ 引用和状态 ============
+    const panelRef = useRef<HTMLDivElement>(null);                    // 面板DOM引用
+    const [dragOverId, setDragOverId] = useState<string | null>(null); // 当前拖拽悬停的图层ID
 
+    // ============ 拖拽排序事件处理 ============
+    
+    /**
+     * 【方法】拖拽开始
+     * 将被拖拽图层的ID存入 dataTransfer
+     */
     const handleDragStart = (e: React.DragEvent<HTMLDivElement>, id: string) => {
         e.dataTransfer.setData('text/plain', id);
-        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.effectAllowed = 'move';  // 设置为移动模式
     };
 
+    /**
+     * 【方法】拖拽经过
+     * 显示拖拽目标区域的高亮效果
+     */
     const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
-        e.preventDefault();
+        e.preventDefault();  // 阻止默认行为，允许放下
         const target = e.currentTarget;
         const id = target.getAttribute('data-id');
         setDragOverId(id);
-        target.style.background = 'rgba(255,255,255,0.2)';
+        target.style.background = 'rgba(255,255,255,0.2)';  // 高亮显示
     };
 
+    /**
+     * 【方法】拖拽离开
+     * 移除高亮效果
+     */
     const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
         e.currentTarget.style.background = '';
         setDragOverId(null);
     };
 
+    /**
+     * 【方法】放下图层
+     * 
+     * 根据鼠标位置判断插入位置（before/after），然后调用排序回调
+     * 
+     * 【实现逻辑】
+     * 1. 获取被拖拽的图层ID和目标图层ID
+     * 2. 计算鼠标相对于目标图层的位置
+     * 3. 如果在上半部分，插入到目标之前（before）
+     * 4. 如果在下半部分，插入到目标之后（after）
+     * 5. 通知父组件重新排序
+     */
     const handleDrop = (e: React.DragEvent<HTMLDivElement>, targetId: string) => {
         e.preventDefault();
         e.currentTarget.style.background = '';
         setDragOverId(null);
-        const draggedId = e.dataTransfer.getData('text/plain');
+        
+        const draggedId = e.dataTransfer.getData('text/plain');  // 获取被拖拽的图层ID
 
+        // 计算插入位置：根据鼠标在目标元素的上半部分还是下半部分
         const rect = e.currentTarget.getBoundingClientRect();
         const position = e.clientY - rect.top > rect.height / 2 ? 'after' : 'before';
 
+        // 如果拖拽的不是自己，则执行排序
         if (draggedId && targetId && draggedId !== targetId) {
             onReorder(draggedId, targetId, position);
         }
     };
 
+    // ============ 性能优化 ============
+    
+    /**
+     * 【useMemo】创建元素映射表
+     * 方便通过ID快速查找元素（虽然这里暂未使用，但预留给未来优化）
+     */
     const elementMap = useMemo(() => new Map(elements.map(el => [el.id, el])), [elements]);
 
+    /**
+     * 【方法】递归渲染图层列表
+     * 
+     * 支持嵌套的父子关系，递归渲染所有图层
+     * 
+     * @param {Element[]} elements - 所有元素数组
+     * @param {number} level - 当前嵌套层级（用于缩进）
+     * @param {string} parentId - 父元素ID（用于筛选子元素）
+     * @returns {React.ReactNode} 渲染的图层列表
+     * 
+     * 【实现逻辑】
+     * 1. 筛选出属于当前 parentId 的元素
+     * 2. 为每个元素渲染 LayerItem 组件
+     * 3. 递归渲染该元素的子元素（level + 1）
+     * 4. 通过 level 计算缩进距离
+     */
     const renderOrderedLayers = (elements: Element[], level: number = 0, parentId?: string) => {
         return elements
-            .filter(el => el.parentId === parentId)
+            .filter(el => el.parentId === parentId)  // 筛选出当前层级的元素
             .map(element => (
                 <React.Fragment key={element.id}>
+                    {/* 拖拽容器 - 监听拖拽事件 */}
                     <div data-id={element.id} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={(e) => handleDrop(e, element.id)}>
                         <LayerItem
                             element={element}
@@ -216,27 +360,40 @@ export const LayerPanelMinimizable: React.FC<LayerPanelMinimizableProps> = ({
                             onDrop={(e) => handleDrop(e, element.id)}
                         />
                     </div>
+                    {/* 递归渲染子元素 */}
                     {renderOrderedLayers(elements, level + 1, element.id)}
                 </React.Fragment>
             ));
     };
 
-    // "传送门"效果：用 scaleX 从左边一条竖线展开
+    // ============ 渲染 ============
+    
+    /**
+     * 【渲染】面板主体
+     * 
+     * 使用 "传送门" 动画效果：
+     * - 最小化时：scaleX(0.005) 缩小到极细的一条线
+     * - 展开时：scaleX(1) 恢复正常宽度
+     * - transformOrigin: 'left center' 从左侧展开
+     * - 配合 opacity 实现平滑过渡
+     * 
+     * 类似 Lovart 的侧边栏展开效果
+     */
     return (
         <div
             ref={panelRef}
             style={{
-                left: '16px',
-                width: '256px', // 宽度固定
-                transform: isMinimized ? 'scaleX(0.005)' : 'scaleX(1)', // 从极小缩放到正常
-                transformOrigin: 'left center', // 从左边展开
-                opacity: isMinimized ? 0 : 1,
+                left: '16px',           // 固定在左侧
+                width: '256px',         // 固定宽度
+                transform: isMinimized ? 'scaleX(0.005)' : 'scaleX(1)',  // 缩放动画
+                transformOrigin: 'left center',  // 从左边展开
+                opacity: isMinimized ? 0 : 1,    // 透明度过渡
                 transition: 'transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease-out',
-                pointerEvents: isMinimized ? 'none' : 'auto',
+                pointerEvents: isMinimized ? 'none' : 'auto',  // 最小化时禁用交互
             }}
             className="fixed top-4 bottom-4 z-20 bg-white border border-neutral-200 rounded-2xl shadow-2xl overflow-hidden flex flex-col"
         >
-            {/* Header - with big minimize button */}
+            {/* 顶部标题栏 - 包含最小化按钮 */}
             <div className="flex-shrink-0 flex justify-between items-center px-3 py-2 border-b border-neutral-200">
                 <h3 className="text-sm font-semibold">图层</h3>
                 <button
@@ -252,8 +409,13 @@ export const LayerPanelMinimizable: React.FC<LayerPanelMinimizableProps> = ({
                 </button>
             </div>
 
-            {/* Layer list */}
+            {/* 图层列表区域 - 可滚动 */}
             <div className="flex-grow p-2 overflow-y-auto">
+                {/* 
+                    反转数组顺序显示：
+                    - 画布上层级高的元素（后添加的）显示在列表顶部
+                    - 符合图层面板的常见设计习惯
+                */}
                 {renderOrderedLayers([...elements].reverse())}
             </div>
         </div>

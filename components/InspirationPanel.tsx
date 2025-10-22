@@ -1,15 +1,53 @@
+/**
+ * ============================================
+ * 灵感库面板组件 (InspirationPanel)
+ * ============================================
+ * 
+ * 【组件职责】
+ * 这是 MakingLovart 的核心特色功能模块，负责管理和展示用户的创作素材库
+ * 
+ * 【核心功能】
+ * 1. 素材分类管理：支持角色(character)、场景(scene)、道具(prop)三大分类
+ * 2. 素材展示：瀑布流布局展示素材缩略图
+ * 3. 拖拽复用：支持将素材拖拽到画布中使用
+ * 4. 重命名功能：双击素材名称进行重命名
+ * 5. 删除功能：移除不需要的素材
+ * 6. AI生成：快速生成新素材并添加到库中
+ * 7. 面板缩放：支持左侧拖拽调整面板宽度
+ * 8. 最小化/展开：可收起为小图标节省空间
+ * 
+ * 【设计模式】
+ * - 受控组件：所有数据由父组件管理，通过 props 传入
+ * - 状态提升：增删改操作通过回调函数通知父组件
+ * - 本地持久化：面板宽度存储在 localStorage
+ * 
+ * 【交互逻辑】
+ * - 单击分类Tab：切换显示不同分类的素材
+ * - 拖拽素材：将素材拖到画布上创建图片层
+ * - 双击名称：进入编辑模式重命名
+ * - 悬停素材：显示名称、尺寸和删除按钮
+ * - 输入提示词：快速生成新素材
+ */
+
 import React, { useRef, useState, useEffect } from 'react';
 import type { AssetLibrary, AssetCategory, AssetItem } from '../types';
 
+/**
+ * 【Props 接口定义】
+ */
 interface InspirationPanelProps {
-    isMinimized: boolean;
-    onToggleMinimize: () => void;
-    library: AssetLibrary;
-    onRemove: (category: AssetCategory, id: string) => void;
-    onRename: (category: AssetCategory, id: string, name: string) => void;
-    onGenerate: (prompt: string) => void;
+    isMinimized: boolean;              // 是否最小化状态
+    onToggleMinimize: () => void;      // 切换最小化/展开的回调
+    library: AssetLibrary;             // 素材库数据（三个分类的素材数组）
+    onRemove: (category: AssetCategory, id: string) => void;        // 删除素材的回调
+    onRename: (category: AssetCategory, id: string, name: string) => void;  // 重命名素材的回调
+    onGenerate: (prompt: string) => void;  // AI生成素材的回调
 }
 
+/**
+ * 【分类标签Tab组件】
+ * 渲染三个分类切换按钮：角色、场景、道具
+ */
 const CategoryTabs: React.FC<{ value: AssetCategory; onChange: (c: AssetCategory) => void }> = ({ value, onChange }) => (
     <div className="grid grid-cols-3 rounded-xl overflow-hidden border border-neutral-200 bg-white">
         {(['character', 'scene', 'prop'] as AssetCategory[]).map(cat => (
@@ -24,6 +62,9 @@ const CategoryTabs: React.FC<{ value: AssetCategory; onChange: (c: AssetCategory
     </div>
 );
 
+/**
+ * 【灵感库主组件】
+ */
 export const InspirationPanel: React.FC<InspirationPanelProps> = ({
     isMinimized,
     onToggleMinimize,
@@ -32,50 +73,71 @@ export const InspirationPanel: React.FC<InspirationPanelProps> = ({
     onRename,
     onGenerate
 }) => {
-    const panelRef = useRef<HTMLDivElement>(null);
-    const [category, setCategory] = useState<AssetCategory>('character');
-    const [editingId, setEditingId] = useState<string | null>(null);
-    const [editingName, setEditingName] = useState<string>('');
-    const [prompt, setPrompt] = useState<string>('');
-    const editInputRef = useRef<HTMLInputElement>(null);
-    const promptInputRef = useRef<HTMLInputElement>(null);
+    // ============ 引用 (Refs) ============
+    const panelRef = useRef<HTMLDivElement>(null);           // 面板DOM引用
+    const editInputRef = useRef<HTMLInputElement>(null);     // 重命名输入框引用
+    const promptInputRef = useRef<HTMLInputElement>(null);   // AI提示词输入框引用
 
-    // Resize state
+    // ============ 状态管理 (State) ============
+    const [category, setCategory] = useState<AssetCategory>('character');  // 当前选中的分类
+    const [editingId, setEditingId] = useState<string | null>(null);       // 正在编辑的素材ID
+    const [editingName, setEditingName] = useState<string>('');            // 编辑中的素材名称
+    const [prompt, setPrompt] = useState<string>('');                      // AI生成提示词
+
+    // ============ 面板缩放相关状态 ============
+    // 从 localStorage 读取上次保存的宽度，默认420px
     const [panelWidth, setPanelWidth] = useState(() => {
         const saved = localStorage.getItem('inspirationPanelWidth');
         return saved ? parseInt(saved, 10) : 420;
     });
-    const [isResizing, setIsResizing] = useState(false);
-    const [resizeStartX, setResizeStartX] = useState(0);
-    const [resizeStartWidth, setResizeStartWidth] = useState(420);
+    const [isResizing, setIsResizing] = useState(false);         // 是否正在调整大小
+    const [resizeStartX, setResizeStartX] = useState(0);         // 调整开始时的鼠标X坐标
+    const [resizeStartWidth, setResizeStartWidth] = useState(420);  // 调整开始时的面板宽度
 
+    // ============ 副作用 (Effects) ============
+    
+    /**
+     * 【Effect 1】持久化面板宽度
+     * 每当面板宽度改变时，保存到 localStorage
+     */
     useEffect(() => {
         localStorage.setItem('inspirationPanelWidth', panelWidth.toString());
     }, [panelWidth]);
 
+    /**
+     * 【Effect 2】处理面板缩放的拖拽逻辑
+     * 监听全局鼠标移动和释放事件，实时更新面板宽度
+     */
     useEffect(() => {
         if (!isResizing) return;
 
         const handlePointerMove = (e: PointerEvent) => {
-            const dx = resizeStartX - e.clientX; // dragging from left edge (reversed)
-            const minW = 320;
-            const maxW = Math.min(800, window.innerWidth - 160);
+            // 从左侧边缘拖拽，dx为负值表示向左拖（增大面板）
+            const dx = resizeStartX - e.clientX;
+            const minW = 320;  // 最小宽度
+            const maxW = Math.min(800, window.innerWidth - 160);  // 最大宽度
             const nextW = Math.min(maxW, Math.max(minW, resizeStartWidth + dx));
             setPanelWidth(nextW);
         };
 
         const handlePointerUp = () => {
-            setIsResizing(false);
+            setIsResizing(false);  // 结束拖拽
         };
 
         window.addEventListener('pointermove', handlePointerMove);
         window.addEventListener('pointerup', handlePointerUp);
+        
+        // 清理事件监听器
         return () => {
             window.removeEventListener('pointermove', handlePointerMove);
             window.removeEventListener('pointerup', handlePointerUp);
         };
     }, [isResizing, resizeStartX, resizeStartWidth]);
 
+    /**
+     * 【Effect 3】自动聚焦重命名输入框
+     * 进入编辑模式时，自动聚焦并选中输入框文本
+     */
     useEffect(() => {
         if (editingId && editInputRef.current) {
             editInputRef.current.focus();
@@ -83,8 +145,14 @@ export const InspirationPanel: React.FC<InspirationPanelProps> = ({
         }
     }, [editingId]);
 
+    // ============ 事件处理函数 (Event Handlers) ============
+
+    /**
+     * 【方法】开始调整面板大小
+     * 用户按下左侧调整手柄时触发
+     */
     const handleResizePointerDown = (e: React.PointerEvent) => {
-        if (e.pointerType === 'mouse' && e.button !== 0) return;
+        if (e.pointerType === 'mouse' && e.button !== 0) return;  // 只响应左键
         setIsResizing(true);
         setResizeStartX(e.clientX);
         setResizeStartWidth(panelWidth);
@@ -92,16 +160,29 @@ export const InspirationPanel: React.FC<InspirationPanelProps> = ({
         e.preventDefault();
     };
 
+    /**
+     * 【方法】素材拖拽开始
+     * 将素材信息存入 dataTransfer，供画布接收
+     */
     const handleDragStart = (e: React.DragEvent, item: AssetItem) => {
+        // 使用特殊标记 __makingAsset 来识别这是从灵感库拖出的素材
         e.dataTransfer.setData('text/plain', JSON.stringify({ __makingAsset: true, item }));
-        e.dataTransfer.effectAllowed = 'copy';
+        e.dataTransfer.effectAllowed = 'copy';  // 设置为复制模式
     };
 
+    /**
+     * 【方法】双击素材名称
+     * 进入重命名编辑模式
+     */
     const handleDoubleClick = (item: AssetItem) => {
         setEditingId(item.id);
         setEditingName(item.name || '');
     };
 
+    /**
+     * 【方法】保存重命名
+     * 验证名称后通知父组件更新
+     */
     const handleSaveEdit = (itemId: string) => {
         if (editingId === itemId && editingName.trim()) {
             onRename(category, itemId, editingName.trim());
@@ -110,6 +191,10 @@ export const InspirationPanel: React.FC<InspirationPanelProps> = ({
         setEditingName('');
     };
 
+    /**
+     * 【方法】重命名输入框键盘事件
+     * Enter: 保存, Escape: 取消
+     */
     const handleKeyDown = (e: React.KeyboardEvent, itemId: string) => {
         if (e.key === 'Enter') {
             e.preventDefault();
@@ -120,6 +205,10 @@ export const InspirationPanel: React.FC<InspirationPanelProps> = ({
         }
     };
 
+    /**
+     * 【方法】AI生成素材
+     * 将提示词传递给父组件，清空输入框
+     */
     const handleGenerate = () => {
         if (prompt.trim()) {
             onGenerate(prompt.trim());
@@ -127,9 +216,15 @@ export const InspirationPanel: React.FC<InspirationPanelProps> = ({
         }
     };
 
+    // 获取当前分类的素材列表
     const items = library[category];
 
-    // Minimized button
+    // ============ 渲染逻辑 ============
+
+    /**
+     * 【渲染模式 1】最小化按钮
+     * 面板收起时只显示一个小图标按钮
+     */
     if (isMinimized) {
         return (
             <button
@@ -145,7 +240,14 @@ export const InspirationPanel: React.FC<InspirationPanelProps> = ({
         );
     }
 
-    // Expanded panel
+    /**
+     * 【渲染模式 2】展开面板
+     * 完整的灵感库界面，包含：
+     * - 左侧调整手柄
+     * - 顶部标题栏和分类Tab
+     * - AI生成输入区
+     * - 素材列表（瀑布流布局）
+     */
     return (
         <div
             ref={panelRef}

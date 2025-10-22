@@ -1,6 +1,6 @@
 <div align="center">
 
-# Making ｜ 创作白板
+# MakingLovart ｜ 创作白板
 
 一个现代化的无限画布 AI 创作工具，为创意工作者打造的智能白板
 
@@ -14,7 +14,9 @@
 
 ## ✨ 项目简介
 
-**Making** 是一个类 [Lovart](https://lovart.com/) 的画面白板工具，基于 Web 的无限画布创作工具，结合了强大的 AI 图像生成能力和灵活的绘图功能。
+**MakingLovart** 是一个类 [Lovart](https://lovart.com/) 的画面白板工具，基于 Web 的无限画布创作工具，结合了强大的 AI 图像生成能力和灵活的绘图功能。
+
+> 💡 **学习项目说明**：本项目是作者以学习为目的开发的创作工具，在学习和实践中不断完善功能。欢迎各位老师和前辈指导、提出建议，帮助项目变得更好！🙏
 
 ### 🎨 设计理念
 
@@ -32,7 +34,7 @@
 - 🌈 **定制化开发**  
   针对插画师、分镜师、概念设计师等创意工作者的实际需求，打造了一套完整的创作工作流。
 
-**Making** 致力于为创意工作者提供一个自由的创作空间，让灵感可以无限延伸。
+**MakingLovart** 致力于为创意工作者提供一个自由的创作空间，让灵感可以无限延伸。
 
 ### 核心特性
 
@@ -68,8 +70,8 @@
 
 1. **克隆仓库**
    ```bash
-   git clone https://github.com/your-username/Making.git
-   cd Making
+   git clone https://github.com/your-username/MakingLovart.git
+   cd MakingLovart
    ```
 
 2. **安装依赖**
@@ -189,7 +191,7 @@
 ## 📂 项目结构
 
 ```
-Making/
+MakingLovart/
 ├── components/          # React 组件
 │   ├── Toolbar.tsx           # 主工具栏
 │   ├── PromptBar.tsx         # AI 提示词输入栏
@@ -267,13 +269,24 @@ npm run type-check
 
 ## 🤝 贡献
 
-欢迎提交 Issue 和 Pull Request！
+本项目是以学习为目的开发的，欢迎各位老师、前辈和同学提出宝贵意见和建议！🙏
+
+**欢迎：**
+- 💡 提出功能建议和改进意见
+- 🐛 报告 Bug 和问题
+- 📖 完善文档和注释
+- 🔧 提交代码优化和新功能
+- 🎓 分享使用经验和最佳实践
+
+**贡献流程：**
 
 1. Fork 本仓库
 2. 创建你的特性分支 (`git checkout -b feature/AmazingFeature`)
 3. 提交你的改动 (`git commit -m 'Add some AmazingFeature'`)
 4. 推送到分支 (`git push origin feature/AmazingFeature`)
 5. 开启 Pull Request
+
+详见 [贡献指南](CONTRIBUTING.md)
 
 ---
 
